@@ -1,6 +1,17 @@
 # 🦀 RustJourney
 My learning journey to rust wizardry
 
+<<<<<<< HEAD
+=======
+## Interesting topics
+
+CLI application architechture
+
+High perfomance multiprocessing
+
+Accessing BLAS and LAPAC from rust
+
+>>>>>>> f496537 (even more rustlings done today)
 ## Plan
 
 - rustlings
