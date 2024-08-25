@@ -13,5 +13,7 @@ Accessing BLAS and LAPAC from rust
 
 - rustlings
 - coreutils implementation with standart library - echo, head, tail, cat, ls, touch, mkdir, sort
+- multithreaded pdb downloader
 - coreutils implementation with clap and other crates
 - implement basic algorithms in data science - float, random numbers, loop vectorization
+- bevy gui app, audio normlizer?
