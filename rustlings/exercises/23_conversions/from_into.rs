@@ -34,7 +34,32 @@ impl Default for Person {
 // 5. Parse the second element from the split operation into a `u8` as the age.
 // 6. If parsing the age fails, return the default of `Person`.
 impl From<&str> for Person {
-    fn from(s: &str) -> Self {}
+    fn from(s: &str) -> Self {
+        let parameters: Vec<&str> = s.split(",").collect();
+        if parameters.len() != 2 {
+            return Self::default();
+        };
+
+        let name = parameters[0].parse::<String>().unwrap();
+        let age_candidate = parameters[1].parse::<u8>();
+
+        let age = match age_candidate {
+            Ok(value) => value,
+            Err(_) => return Self::default(),
+        };
+
+        // println!("XOXOXOX unwrap_or_default {name_candidate} {age_candidate}");
+
+        if name.is_empty() {
+            return Self::default();
+        };
+
+        // let age = age_candidate;
+
+        // println!("XOXOXOX hand_parse {name} {age}");
+
+        Self { name, age }
+    }
 }
 
 fn main() {

@@ -3,7 +3,7 @@ My learning journey to rust wizardry
 
 ## Plan
 
-- rustlings
+- rustlings Finished on 2024-09-23
 - coreutils implementation with standart library - echo, head, tail, cat, ls, touch, mkdir, sort
 - multithreaded pdb downloader
 - coreutils implementation with clap and other crates
