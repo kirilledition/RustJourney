@@ -3,6 +3,9 @@
 {
 	"name": "Rust",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+	"remoteEnv": {
+		"PATH": "${containerEnv:PATH}:/workspaces/RustJourney/exercism-3.5.1-linux-x86_64"
+	},
 	"image": "mcr.microsoft.com/devcontainers/rust:1-1-bullseye",
 	"features": {
 		"ghcr.io/devcontainers/features/common-utils:2": {
@@ -28,7 +31,6 @@
 			"desiredLocale": "en_US.UTF-8 UTF-8"
 		}
 	}
-
 	// Use 'mounts' to make the cargo cache persistent in a Docker Volume.
 	// "mounts": [
 	// 	{
@@ -37,19 +39,14 @@
 	// 		"type": "volume"
 	// 	}
 	// ]
-
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
-
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
-
 	// Use 'postCreateCommand' to run commands after the container is created.
 	// "postCreateCommand": "rustc --version",
-
 	// Configure tool-specific properties.
 	// "customizations": {},
-
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "root"
 }

@@ -4,7 +4,7 @@ My learning journey to rust wizardry
 ## Plan
 
 - rustlings Finished on 2024-09-23
-
+- exercism rust track Start 2024-09-26 -
 - read rust 2 prod
 
 - coreutils implementation with standart library - echo, head, tail, cat, ls, touch, mkdir, sort
