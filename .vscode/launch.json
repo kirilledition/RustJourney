@@ -7,6 +7,158 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug unit tests in library 'luhn'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=luhn"
+                ],
+                "filter": {
+                    "name": "luhn",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'luhn'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=luhn",
+                    "--package=luhn"
+                ],
+                "filter": {
+                    "name": "luhn",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'anagram'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=anagram"
+                ],
+                "filter": {
+                    "name": "anagram",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'anagram'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=anagram",
+                    "--package=anagram"
+                ],
+                "filter": {
+                    "name": "anagram",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'armstrong_numbers'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=armstrong_numbers"
+                ],
+                "filter": {
+                    "name": "armstrong_numbers",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'armstrong-numbers'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=armstrong-numbers",
+                    "--package=armstrong_numbers"
+                ],
+                "filter": {
+                    "name": "armstrong-numbers",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'beer_song'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=beer-song"
+                ],
+                "filter": {
+                    "name": "beer_song",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'beer-song'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=beer-song",
+                    "--package=beer-song"
+                ],
+                "filter": {
+                    "name": "beer-song",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in library 'clock'",
             "cargo": {
                 "args": [
@@ -36,6 +188,44 @@
                 ],
                 "filter": {
                     "name": "clock",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'gigasecond'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=gigasecond"
+                ],
+                "filter": {
+                    "name": "gigasecond",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'gigasecond'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=gigasecond",
+                    "--package=gigasecond"
+                ],
+                "filter": {
+                    "name": "gigasecond",
                     "kind": "test"
                 }
             },
@@ -83,6 +273,44 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug unit tests in library 'minesweeper'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=minesweeper"
+                ],
+                "filter": {
+                    "name": "minesweeper",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'minesweeper'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=minesweeper",
+                    "--package=minesweeper"
+                ],
+                "filter": {
+                    "name": "minesweeper",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in library 'reverse_string'",
             "cargo": {
                 "args": [
@@ -112,6 +340,82 @@
                 ],
                 "filter": {
                     "name": "reverse-string",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'space_age'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=space-age"
+                ],
+                "filter": {
+                    "name": "space_age",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'space-age'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=space-age",
+                    "--package=space-age"
+                ],
+                "filter": {
+                    "name": "space-age",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'sublist'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=sublist"
+                ],
+                "filter": {
+                    "name": "sublist",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'sublist'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=sublist",
+                    "--package=sublist"
+                ],
+                "filter": {
+                    "name": "sublist",
                     "kind": "test"
                 }
             },
