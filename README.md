@@ -3,19 +3,7 @@ My learning journey to rust wizardry
 
 ## Plan
 
-- rustlings Finished on 2024-09-23
-- exercism rust track Start 2024-09-26 -
-- read rust 2 prod
-
-- coreutils implementation with standart library - echo, head, tail, cat, ls, touch, mkdir, sort
-- multithreaded pdb downloader
-- coreutils implementation with clap and other crates
-- implement basic algorithms in data science - float, random numbers, loop vectorization
-- bevy gui app, record webcam and audio to separate files
-
-## Interesting topics
-
-- CLI application architechture
-- High perfomance multiprocessing
-- Accessing BLAS and LAPAC from rust
-- GUI application
+- [x] rustlings: 2024-08-24 - 2024-09-23
+- [ ] exercism rust track: 2024-09-26 -
+- [ ] read rust for rustaceans: 2024-09-28 -
+- [ ] digest app 2024-10-02 - 
