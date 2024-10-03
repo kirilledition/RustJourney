@@ -1,21 +1,32 @@
 use chrono::{DateTime, Utc};
 use core::fmt;
-use std::error;
+use std::{error, usize};
+use tiktoken_rs::o200k_base;
 
 const ASTRAL_CODEX_TEN_FEED: &str = "https://www.astralcodexten.com/feed";
 
 fn main() {
     let post_collection = feed_to_post_collection(ASTRAL_CODEX_TEN_FEED).unwrap();
 
+    let mut final_text = String::new();
+
     post_collection.iter().for_each(|post| {
-        let markdown_post = html2md::parse_html(&post.content);
-        println!(
-            "# title: {}\nlink: {}\ncontent: {}\npublication data: {}",
-            post.title, post.link, markdown_post, post.publication_date,
-        )
+        let post_text = format!(
+            "# title: {}\npublication date: {} link: {}\ncontent: {}",
+            post.title, post.publication_date, post.link, post.content,
+        );
+
+        final_text.push_str(&post_text);
     });
 
-    println!("Length ofpost collection is {}", post_collection.len())
+    println!(
+        "{final_text}Length ofpost collection is {}",
+        post_collection.len()
+    );
+
+    let bpe = o200k_base().unwrap();
+    let tokens = bpe.encode_with_special_tokens(final_text.as_str());
+    println!("Token count: {}", tokens.len());
 }
 
 #[derive(Debug)]
@@ -38,15 +49,18 @@ impl fmt::Display for Post {
 
 impl From<&rss::Item> for Post {
     fn from(item: &rss::Item) -> Self {
+        // want to compile only once, probably singleton
+        let url_regex = regex::Regex::new(
+            r"(http|ftp|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?",
+        )
+        .unwrap();
         Self {
             title: item.title().map_or_else(String::new, String::from),
             link: item.link().map_or_else(String::new, String::from),
-            content: item
-                .content()
-                .map_or_else(String::new, String::from)
-                // .get(0..1000)
-                // .unwrap_or_default()
-                .to_string(),
+            content: item.content().map_or_else(String::new, |text| {
+                let plain_text = html2text::from_read(&text.as_bytes()[..], text.len());
+                url_regex.replace_all(plain_text.as_str(), "").to_string()
+            }),
             publication_date: DateTime::parse_from_rfc2822(item.pub_date().unwrap_or_default())
                 .unwrap_or_default()
                 .with_timezone(&Utc),
