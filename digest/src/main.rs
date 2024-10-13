@@ -16,19 +16,10 @@ fn main() {
     let path = Path::new(OUTPUT_FILE);
     let display = path.display();
 
-    // Open a file in write-only mode, returns `io::Result<File>`
     let mut file = match fs::File::create(&path) {
         Err(why) => panic!("couldn't create {}: {}", display, why),
         Ok(file) => file,
     };
-
-    // Write the `LOREM_IPSUM` string to `file`, returns `io::Result<()>`
-    // match file.write_all(final_text.as_bytes()) {
-    //     Err(why) => panic!("couldn't write to {}: {}", display, why),
-    //     Ok(_) => println!("successfully wrote to {}", display),
-    // }
-
-    // let mut final_text = String::from("# Kirusha weekly digest\n## Scott Alexander\n");
 
     let _ = file.write_fmt(format_args!(
         "# Kirusha digest for {}\n",
@@ -38,10 +29,6 @@ fn main() {
 
     post_collection.iter().for_each(|post| {
         let post_summary = mock_summarize(post.content.clone());
-        // let post_text: String = format!(
-        //     "### {}\n publication date: *{}* [**link**]({})\n\ncontent: {}\n\n",
-        //     post.title, post.link, post.publication_date, post_summary,
-        // );
 
         let _ = file.write_fmt(format_args!(
             "### {}\n*{}* [**link**]({})\n\n{}\n",
@@ -50,8 +37,6 @@ fn main() {
             post.link,
             post_summary,
         ));
-
-        // final_text.push_str(&post_text);
     });
 }
 
@@ -121,5 +106,3 @@ fn feed_to_post_collection(feed_url: &str) -> Result<Vec<Post>, Box<dyn error::E
 
     Ok(post_collection)
 }
-
-fn current_week_identifier() {}
