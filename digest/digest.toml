@@ -1,0 +1,7 @@
+# period = "week"
+# date_from = "now" # "2021-01-01"
+
+feeds = [
+    { name = "Scott Alexander", feed_url = "https://www.astralcodexten.com/feed", regex_filter = "(?i)(open thread|classfields)" },
+    { name = "Robin Hanson", feed_url = "http://www.overcomingbias.com/feed", regex_filter = "" },
+]
