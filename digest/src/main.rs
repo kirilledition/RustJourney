@@ -2,23 +2,56 @@ use chrono::{DateTime, Duration, Utc};
 use core::fmt;
 use regex::Regex;
 use std::error;
+use std::fs;
+use std::io::prelude::*;
+use std::path::Path;
 
 const SECONDS_IN_WEEK: i64 = 604800;
 const ASTRAL_CODEX_TEN_FEED: &str = "https://www.astralcodexten.com/feed";
+const OUTPUT_FILE: &str = "example_digest.md";
 
 fn main() {
     let post_collection = feed_to_post_collection(ASTRAL_CODEX_TEN_FEED).unwrap();
 
-    let mut final_text = String::from("# Kirusha weekly digest\n## Scott Alexander\n");
+    let path = Path::new(OUTPUT_FILE);
+    let display = path.display();
+
+    // Open a file in write-only mode, returns `io::Result<File>`
+    let mut file = match fs::File::create(&path) {
+        Err(why) => panic!("couldn't create {}: {}", display, why),
+        Ok(file) => file,
+    };
+
+    // Write the `LOREM_IPSUM` string to `file`, returns `io::Result<()>`
+    // match file.write_all(final_text.as_bytes()) {
+    //     Err(why) => panic!("couldn't write to {}: {}", display, why),
+    //     Ok(_) => println!("successfully wrote to {}", display),
+    // }
+
+    // let mut final_text = String::from("# Kirusha weekly digest\n## Scott Alexander\n");
+
+    let _ = file.write_fmt(format_args!(
+        "# Kirusha digest for {}\n",
+        Utc::now().format("week %W (%e %B)")
+    ));
+    let _ = file.write("## Scott Alexander\n".as_bytes());
 
     post_collection.iter().for_each(|post| {
         let post_summary = mock_summarize(post.content.clone());
-        let post_text = format!(
-            "### {}\n publication date: *{}* [**link**]({})\n\ncontent: {}\n\n",
-            post.title, post.link, post.publication_date, post_summary,
-        );
+        // let post_text: String = format!(
+        //     "### {}\n publication date: *{}* [**link**]({})\n\ncontent: {}\n\n",
+        //     post.title, post.link, post.publication_date, post_summary,
+        // );
 
-        final_text.push_str(&post_text);
+        let _ = file.write_fmt(format_args!(
+            "### {}\n*{}* [**link**]({})\n\n{}\n",
+            post.title,
+            post.publication_date.format("%A"),
+            post.link,
+            post_summary,
+        ));
+
+        // final_text.push_str(&post_text);
     });
 }
 
@@ -88,3 +121,5 @@ fn feed_to_post_collection(feed_url: &str) -> Result<Vec<Post>, Box<dyn error::E
 
     Ok(post_collection)
 }
+
+fn current_week_identifier() {}

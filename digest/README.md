@@ -10,7 +10,7 @@ Collect posts from selected substacks, summarize, collect to markdown file
 
 - [x] remove images and links from post body (maybe need just plain text from html)
 - [x] format summary with mock summary function
-- [ ] issue markdown version of digest
+- [x] issue markdown version of digest
 - [ ] multi source version with post iterator
 
 
