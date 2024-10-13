@@ -10,5 +10,6 @@ regex = "1"
 reqwest = { version = "0", features = ["blocking"] }
 rss = "2"
 serde = "1"
-serde_derive = "1.0.210"
+serde_derive = "1"
+telegraph-rs = "0"
 toml = "0"

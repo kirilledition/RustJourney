@@ -4,6 +4,7 @@ use serde_derive::Deserialize;
 use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
+// use telegraph_rs::{html_to_node, Telegraph};
 
 const CONFIG_PATH: &str = "digest.toml";
 const SECONDS_IN_WEEK: i64 = 604800;
@@ -16,7 +17,9 @@ fn main() {
     let config: NewsletterConfig = toml::from_str(&config_string).unwrap();
 
     let mut newsletter = Newsletter::from(config);
-    let newsletter_text = newsletter.to_markdown();
+    // let newsletter_text = newsletter.to_markdown();
+    let newsletter_text = newsletter.to_html();
+
     newsletter
         .output_file
         .write(newsletter_text.as_bytes())
@@ -77,11 +80,36 @@ impl Newsletter {
         newsletter_text.push_str(&header);
 
         for feed in self.feeds.iter_mut() {
-            let feed_title = format!("# {}\n", feed.name);
+            let feed_title = format!("## {}\n", feed.name);
             newsletter_text.push_str(&feed_title);
 
             for post in feed.posts.iter_mut() {
                 let post_text = post.to_markdown();
+
+                newsletter_text.push_str(&post_text);
+            }
+        }
+
+        newsletter_text
+    }
+
+    fn to_html(&mut self) -> String {
+        let mut newsletter_text = String::new();
+
+        let header = format!(
+            "<h1>{} for {}</h1>",
+            self.title,
+            Utc::now().format("week %W (%e %B)")
+        );
+
+        newsletter_text.push_str(&header);
+
+        for feed in self.feeds.iter_mut() {
+            let feed_title = format!("<h2>{}<h2>", feed.name);
+            newsletter_text.push_str(&feed_title);
+
+            for post in feed.posts.iter_mut() {
+                let post_text = post.to_html();
 
                 newsletter_text.push_str(&post_text);
             }
@@ -148,10 +176,21 @@ impl Post {
     fn to_markdown(&mut self) -> String {
         self.summarize();
         format!(
-            "### {}\n*{}* [**link**]({})\n\n{}\n",
+            "### [{}]({})\n*On {}*\n\n{}\n",
+            self.title,
+            self.link,
+            self.publication_date.format("%A"),
+            self.summary
+        )
+    }
+
+    fn to_html(&mut self) -> String {
+        self.summarize();
+        format!(
+            "<h3> <a href={}>{}</a> </h3><i>On {}</i><p>{}<p>",
+            self.link,
             self.title,
             self.publication_date.format("%A"),
-            self.link,
             self.summary
         )
     }
@@ -160,7 +199,7 @@ impl Post {
 impl From<&rss::Item> for Post {
     fn from(item: &rss::Item) -> Self {
         // want to compile only once, probably singleton
-        let brackets_regex = Regex::new(r"[\[\]]").unwrap();
+        let unnecessary_symbols_regex = Regex::new(r"[\[\]\*\n]").unwrap();
         let url_regex = Regex::new(
             r"(http|ftp|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?",
         )
@@ -171,8 +210,8 @@ impl From<&rss::Item> for Post {
             content: item.content().map_or_else(String::new, |text| {
                 let plain_text = html2text::from_read(&text.as_bytes()[..], text.len());
                 let text_without_urls = url_regex.replace_all(plain_text.as_str(), "").to_string();
-                brackets_regex
-                    .replace_all(&text_without_urls.as_str(), " ")
+                unnecessary_symbols_regex
+                    .replace_all(&text_without_urls.as_str(), "")
                     .to_string()
             }),
             publication_date: DateTime::parse_from_rfc2822(item.pub_date().unwrap_or_default())
