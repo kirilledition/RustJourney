@@ -12,6 +12,7 @@ Collect posts from selected substacks, summarize, collect to telegraph post and 
 - [x] format summary with mock summary function
 - [x] issue markdown version of digest
 - [x] multi source version with post iterator
+- [ ] move regex to lazy_static
 - [ ] implement telegraph api
 - [ ] implement telegram posting
 - [ ] implement openai api
