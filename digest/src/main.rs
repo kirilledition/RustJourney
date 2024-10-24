@@ -4,10 +4,18 @@ use serde_derive::Deserialize;
 use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
+use std::sync;
 // use telegraph_rs::{html_to_node, Telegraph};
 
 const CONFIG_PATH: &str = "digest.toml";
 const SECONDS_IN_WEEK: i64 = 604800;
+
+static UNNECESSARY_SYMBOLS_REGEX: sync::LazyLock<Regex> =
+    sync::LazyLock::new(|| Regex::new(r"[\[\]\*\n]").unwrap());
+
+static URL_REGEX: sync::LazyLock<Regex> = sync::LazyLock::new(|| {
+    Regex::new(r"(http|ftp|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?").unwrap()
+});
 
 fn main() {
     let mut config_file = File::open(CONFIG_PATH).unwrap();
@@ -198,19 +206,13 @@ impl Post {
 
 impl From<&rss::Item> for Post {
     fn from(item: &rss::Item) -> Self {
-        // want to compile only once, probably singleton
-        let unnecessary_symbols_regex = Regex::new(r"[\[\]\*\n]").unwrap();
-        let url_regex = Regex::new(
-            r"(http|ftp|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?",
-        )
-        .unwrap();
         Self {
             title: item.title().map_or_else(String::new, String::from),
             link: item.link().map_or_else(String::new, String::from),
             content: item.content().map_or_else(String::new, |text| {
                 let plain_text = html2text::from_read(&text.as_bytes()[..], text.len());
-                let text_without_urls = url_regex.replace_all(plain_text.as_str(), "").to_string();
-                unnecessary_symbols_regex
+                let text_without_urls = URL_REGEX.replace_all(plain_text.as_str(), "").to_string();
+                UNNECESSARY_SYMBOLS_REGEX
                     .replace_all(&text_without_urls.as_str(), "")
                     .to_string()
             }),
