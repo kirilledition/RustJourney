@@ -4,8 +4,9 @@ use serde_derive::Deserialize;
 use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
+use std::process::exit;
 use std::sync;
-// use telegraph_rs::{html_to_node, Telegraph};
+use telegraph_rs::{html_to_node, Telegraph};
 
 const CONFIG_PATH: &str = "digest.toml";
 const SECONDS_IN_WEEK: i64 = 604800;
@@ -17,25 +18,73 @@ static URL_REGEX: sync::LazyLock<Regex> = sync::LazyLock::new(|| {
     Regex::new(r"(http|ftp|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?").unwrap()
 });
 
-fn main() {
-    let mut config_file = File::open(CONFIG_PATH).unwrap();
+#[tokio::main]
+async fn main() {
+    match run().await {
+        Ok(_) => (),
+        Err(error) => {
+            println!("Error {error}");
+            exit(1)
+        }
+    }
+    exit(0)
+}
+
+async fn run() -> Result<(), Box<dyn Error>> {
+    let config = match read_config(CONFIG_PATH) {
+        Ok(config) => config,
+        Err(error) => return Err(error),
+    };
+    let (mut newsletter, newsletter_text) = match create_newsletter_html(config) {
+        Ok(text) => text,
+        Err(error) => return Err(error),
+    };
+
+    match write_newsletter_to_file(&mut newsletter, newsletter_text) {
+        Ok(_) => (),
+        Err(error) => return Err(error),
+    };
+
+    let page = post_to_telegraph(&mut newsletter).await;
+    println!("{page:?}");
+
+    Ok(())
+}
+
+fn read_config(config_path: &str) -> Result<NewsletterConfig, Box<dyn Error>> {
     let mut config_string = String::new();
-    let _ = config_file.read_to_string(&mut config_string);
+    let mut config_file = match File::open(config_path) {
+        Ok(file) => file,
+        Err(error) => return Err(error.into()),
+    };
 
-    let config: NewsletterConfig = toml::from_str(&config_string).unwrap();
-    println!("Read config");
+    match config_file.read_to_string(&mut config_string) {
+        Ok(_) => (),
+        Err(error) => return Err(error.into()),
+    }
 
+    match toml::from_str::<NewsletterConfig>(&config_string) {
+        Ok(config) => return Ok(config),
+        Err(error) => return Err(error.into()),
+    };
+}
+
+fn create_newsletter_html(
+    config: NewsletterConfig,
+) -> Result<(Newsletter, String), Box<dyn Error>> {
     let mut newsletter = Newsletter::from(config);
-    println!("Construct newsletter");
-    // let newsletter_text = newsletter.to_markdown();
     let newsletter_text = newsletter.to_html();
-    println!("Transform newsletter to html");
+    Ok((newsletter, newsletter_text))
+}
 
-    newsletter
-        .output_file
-        .write(newsletter_text.as_bytes())
-        .unwrap();
-    println!("Wrote newsletter");
+fn write_newsletter_to_file(
+    newsletter: &mut Newsletter,
+    newsletter_text: String,
+) -> Result<(), Box<dyn Error>> {
+    match newsletter.output_file.write(newsletter_text.as_bytes()) {
+        Ok(_) => return Ok(()),
+        Err(error) => return Err(error.into()),
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -68,7 +117,10 @@ impl Newsletter {
             .map(|feed_config| {
                 let mut feed = Feed::from(feed_config);
                 println!("Open feed {}", feed.feed_url);
-                feed.fetch_posts().unwrap();
+
+                {
+                    feed.fetch_posts().await.unwrap()
+                };
                 println!("Fetched feed posts");
                 feed
             })
@@ -83,44 +135,11 @@ impl Newsletter {
         }
     }
 
-    fn to_markdown(&mut self) -> String {
-        let mut newsletter_text = String::new();
-
-        let header = format!(
-            "# {} for {}\n",
-            self.title,
-            Utc::now().format("**week %W** (%e %B)")
-        );
-
-        newsletter_text.push_str(&header);
-
-        for feed in self.feeds.iter_mut() {
-            let feed_title = format!("## {}\n", feed.name);
-            newsletter_text.push_str(&feed_title);
-
-            for post in feed.posts.iter_mut() {
-                let post_text = post.to_markdown();
-
-                newsletter_text.push_str(&post_text);
-            }
-        }
-
-        newsletter_text
-    }
-
     fn to_html(&mut self) -> String {
         let mut newsletter_text = String::new();
 
-        let header = format!(
-            "<h1>{} for {}</h1>",
-            self.title,
-            Utc::now().format("week %W (%e %B)")
-        );
-
-        newsletter_text.push_str(&header);
-
         for feed in self.feeds.iter_mut() {
-            let feed_title = format!("<h2>{}<h2>", feed.name);
+            let feed_title = format!("<h1>{}<h1>", feed.name);
             newsletter_text.push_str(&feed_title);
 
             for post in feed.posts.iter_mut() {
@@ -152,8 +171,10 @@ impl Feed {
         }
     }
 
-    fn fetch_posts(&mut self) -> Result<(), Box<dyn Error>> {
-        let feed_bytes = reqwest::blocking::get(&self.feed_url)?.bytes()?;
+    async fn fetch_posts(&mut self) -> Result<(), Box<dyn Error>> {
+        // let feed_bytes = reqwest::blocking::get(&self.feed_url)?.bytes()?;
+        let feed_bytes = reqwest::get(&self.feed_url).await?.bytes().await?;
+
         let channel = rss::Channel::read_from(&feed_bytes[..])?;
 
         self.posts = channel
@@ -189,21 +210,10 @@ impl Post {
         }
     }
 
-    fn to_markdown(&mut self) -> String {
-        self.summarize();
-        format!(
-            "### [{}]({})\n*On {}*\n\n{}\n",
-            self.title,
-            self.link,
-            self.publication_date.format("%A"),
-            self.summary
-        )
-    }
-
     fn to_html(&mut self) -> String {
         self.summarize();
         format!(
-            "<h3> <a href={}>{}</a> </h3><i>On {}</i><p>{}<p>",
+            "<h2> <a href={}>{}</a> </h2><i>On {}</i><p>{}<p>",
             self.link,
             self.title,
             self.publication_date.format("%A"),
@@ -230,4 +240,23 @@ impl From<&rss::Item> for Post {
             summary: String::new(),
         }
     }
+}
+
+async fn post_to_telegraph(newsletter: &mut Newsletter) -> telegraph_rs::Page {
+    let telegraph = Telegraph::new(&newsletter.title).create().await.unwrap();
+    let newsletter_text = newsletter.to_html();
+    let newsletter_title = format!(
+        "{} for {}",
+        &newsletter.title,
+        Utc::now().format("week %W (%e %B)")
+    );
+
+    let node_text = html_to_node(&newsletter_text);
+
+    let page = telegraph
+        .create_page(newsletter_title.as_str(), &node_text, false)
+        .await
+        .unwrap();
+
+    page
 }
