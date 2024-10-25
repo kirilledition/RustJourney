@@ -23,15 +23,19 @@ fn main() {
     let _ = config_file.read_to_string(&mut config_string);
 
     let config: NewsletterConfig = toml::from_str(&config_string).unwrap();
+    println!("Read config");
 
     let mut newsletter = Newsletter::from(config);
+    println!("Construct newsletter");
     // let newsletter_text = newsletter.to_markdown();
     let newsletter_text = newsletter.to_html();
+    println!("Transform newsletter to html");
 
     newsletter
         .output_file
         .write(newsletter_text.as_bytes())
         .unwrap();
+    println!("Wrote newsletter");
 }
 
 #[derive(Debug, Deserialize)]
@@ -63,12 +67,15 @@ impl Newsletter {
             .cloned()
             .map(|feed_config| {
                 let mut feed = Feed::from(feed_config);
+                println!("Open feed {}", feed.feed_url);
                 feed.fetch_posts().unwrap();
+                println!("Fetched feed posts");
                 feed
             })
             .collect();
 
         let output_file = File::create(config.output_file).unwrap();
+        println!("Open output file");
         Self {
             title: config.title,
             output_file,
@@ -154,6 +161,7 @@ impl Feed {
             .iter()
             .map(Post::from)
             .filter(|post| {
+                println!("Filtering {}", post.link);
                 let week_ago =
                     post.publication_date > Utc::now() - Duration::seconds(SECONDS_IN_WEEK);
                 let filter_words = !self.regex_filter.is_match(&post.title);
