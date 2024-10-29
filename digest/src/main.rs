@@ -4,9 +4,7 @@ use serde_derive::Deserialize;
 use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
-use std::process::exit;
 use std::sync;
-use telegraph_rs::{html_to_node, Telegraph};
 
 const CONFIG_PATH: &str = "digest.toml";
 const SECONDS_IN_WEEK: i64 = 604800;
@@ -25,10 +23,10 @@ fn main() {
         Ok(_) => (),
         Err(error) => {
             println!("Error {error}");
-            exit(1)
+            std::process::exit(1)
         }
     }
-    exit(0)
+    std::process::exit(0)
 }
 
 async fn run() -> Result<(), Box<dyn Error>> {
@@ -244,7 +242,10 @@ impl From<&rss::Item> for Post {
 }
 
 async fn post_to_telegraph(newsletter: &mut Newsletter) -> telegraph_rs::Page {
-    let telegraph = Telegraph::new(&newsletter.title).create().await.unwrap();
+    let telegraph = telegraph_rs::Telegraph::new(&newsletter.title)
+        .create()
+        .await
+        .unwrap();
     println!("created telegraph object");
     let newsletter_text = newsletter.to_html();
     println!("created newsletter text");
@@ -256,7 +257,7 @@ async fn post_to_telegraph(newsletter: &mut Newsletter) -> telegraph_rs::Page {
     );
     println!("created newsletter title");
 
-    let node_text = html_to_node(newsletter_text.as_str());
+    let node_text = telegraph_rs::html_to_node(newsletter_text.as_str());
     println!("created newsletter nodes {node_text:?}");
 
     let page = telegraph
