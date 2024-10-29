@@ -18,9 +18,10 @@ static URL_REGEX: sync::LazyLock<Regex> = sync::LazyLock::new(|| {
     Regex::new(r"(http|ftp|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?").unwrap()
 });
 
-#[tokio::main]
-async fn main() {
-    match run().await {
+fn main() {
+    let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+
+    match rt.block_on(run()) {
         Ok(_) => (),
         Err(error) => {
             println!("Error {error}");
@@ -35,10 +36,11 @@ async fn run() -> Result<(), Box<dyn Error>> {
         Ok(config) => config,
         Err(error) => return Err(error),
     };
-    let (mut newsletter, newsletter_text) = match create_newsletter_html(config) {
-        Ok(text) => text,
-        Err(error) => return Err(error),
-    };
+    let (mut newsletter, newsletter_text) =
+        match tokio::task::spawn_blocking(move || create_newsletter_html(config)).await? {
+            Ok(text) => text,
+            Err(error) => return Err(error),
+        };
 
     match write_newsletter_to_file(&mut newsletter, newsletter_text) {
         Ok(_) => (),
@@ -71,7 +73,7 @@ fn read_config(config_path: &str) -> Result<NewsletterConfig, Box<dyn Error>> {
 
 fn create_newsletter_html(
     config: NewsletterConfig,
-) -> Result<(Newsletter, String), Box<dyn Error>> {
+) -> Result<(Newsletter, String), Box<dyn Error + Send>> {
     let mut newsletter = Newsletter::from(config);
     let newsletter_text = newsletter.to_html();
     Ok((newsletter, newsletter_text))
@@ -119,7 +121,7 @@ impl Newsletter {
                 println!("Open feed {}", feed.feed_url);
 
                 {
-                    feed.fetch_posts().await.unwrap()
+                    feed.fetch_posts().unwrap()
                 };
                 println!("Fetched feed posts");
                 feed
@@ -139,7 +141,7 @@ impl Newsletter {
         let mut newsletter_text = String::new();
 
         for feed in self.feeds.iter_mut() {
-            let feed_title = format!("<h1>{}<h1>", feed.name);
+            let feed_title = format!("<h3>{}</h3>", feed.name);
             newsletter_text.push_str(&feed_title);
 
             for post in feed.posts.iter_mut() {
@@ -171,9 +173,8 @@ impl Feed {
         }
     }
 
-    async fn fetch_posts(&mut self) -> Result<(), Box<dyn Error>> {
-        // let feed_bytes = reqwest::blocking::get(&self.feed_url)?.bytes()?;
-        let feed_bytes = reqwest::get(&self.feed_url).await?.bytes().await?;
+    fn fetch_posts(&mut self) -> Result<(), Box<dyn Error>> {
+        let feed_bytes = reqwest::blocking::get(&self.feed_url)?.bytes()?;
 
         let channel = rss::Channel::read_from(&feed_bytes[..])?;
 
@@ -213,7 +214,7 @@ impl Post {
     fn to_html(&mut self) -> String {
         self.summarize();
         format!(
-            "<h2> <a href={}>{}</a> </h2><i>On {}</i><p>{}<p>",
+            "<h4><a href={}>{}</a></h4><i>On {}: </i><p> {}</p>",
             self.link,
             self.title,
             self.publication_date.format("%A"),
@@ -228,7 +229,7 @@ impl From<&rss::Item> for Post {
             title: item.title().map_or_else(String::new, String::from),
             link: item.link().map_or_else(String::new, String::from),
             content: item.content().map_or_else(String::new, |text| {
-                let plain_text = html2text::from_read(&text.as_bytes()[..], text.len());
+                let plain_text = html2text::from_read(&text.as_bytes()[..], text.len()).unwrap();
                 let text_without_urls = URL_REGEX.replace_all(plain_text.as_str(), "").to_string();
                 UNNECESSARY_SYMBOLS_REGEX
                     .replace_all(&text_without_urls.as_str(), "")
@@ -244,19 +245,25 @@ impl From<&rss::Item> for Post {
 
 async fn post_to_telegraph(newsletter: &mut Newsletter) -> telegraph_rs::Page {
     let telegraph = Telegraph::new(&newsletter.title).create().await.unwrap();
+    println!("created telegraph object");
     let newsletter_text = newsletter.to_html();
+    println!("created newsletter text");
+
     let newsletter_title = format!(
         "{} for {}",
         &newsletter.title,
         Utc::now().format("week %W (%e %B)")
     );
+    println!("created newsletter title");
 
-    let node_text = html_to_node(&newsletter_text);
+    let node_text = html_to_node(newsletter_text.as_str());
+    println!("created newsletter nodes {node_text:?}");
 
     let page = telegraph
         .create_page(newsletter_title.as_str(), &node_text, false)
         .await
         .unwrap();
+    println!("posted page");
 
     page
 }
