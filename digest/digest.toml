@@ -6,3 +6,5 @@ feeds = [
     { name = "Scott Alexander", feed_url = "https://www.astralcodexten.com/feed", regex_filter = "(?i)(open thread|classfields)" },
     { name = "Robin Hanson", feed_url = "http://www.overcomingbias.com/feed", regex_filter = "$^" },
 ]
+# summarization_prompt
+# summarization_model

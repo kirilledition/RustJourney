@@ -1,3 +1,6 @@
+use async_openai::{
+    types::ChatCompletionRequestSystemMessageArgs, types::CreateChatCompletionRequestArgs, Client,
+};
 use chrono::{DateTime, Duration, Utc};
 use regex::Regex;
 use serde_derive::Deserialize;
@@ -203,10 +206,17 @@ struct Post {
 }
 
 impl Post {
+    // fn summarize(&mut self) {
+    //     if self.summary.len() < 280 {
+    //         self.summary = self.content[0..280].to_string()
+    //     }
+    // }
+
     fn summarize(&mut self) {
-        if self.summary.len() < 280 {
-            self.summary = self.content[0..280].to_string()
-        }
+        self.summary = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(summarize(self.content.clone()))
+        })
+        .unwrap_or_else(|_| String::from("Empty summary"));
     }
 
     fn to_html(&mut self) -> String {
@@ -267,4 +277,29 @@ async fn post_to_telegraph(newsletter: &mut Newsletter) -> telegraph_rs::Page {
     println!("posted page");
 
     page
+}
+
+async fn summarize(text_to_summarize: String) -> Result<String, Box<dyn Error>> {
+    let summarization_prompt = String::from("Summarize the following text into a single text of no more than 280 characters. Focus on capturing the main takeaway and presenting it. Avoid excessive detail but ensure the core message is clear and engaging. Text:");
+    let prompt = format!("{} {}", summarization_prompt, text_to_summarize);
+
+    let client = Client::new();
+
+    // single
+    let request = CreateChatCompletionRequestArgs::default()
+        .model("gpt-4o-mini")
+        .messages([ChatCompletionRequestSystemMessageArgs::default()
+            .content(prompt)
+            .build()?
+            .into()])
+        .max_tokens(280_u32)
+        .build()?;
+
+    let response = client.chat().create(request).await?;
+
+    response.choices[0]
+        .message
+        .content
+        .clone()
+        .ok_or("error with message option".into())
 }

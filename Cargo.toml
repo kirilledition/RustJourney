@@ -4,4 +4,4 @@ version = "0.0.0"
 edition = "2021"
 
 [workspace]
-members = ["/workspaces/RustJourney/exercism/rust/*", "digest"]
+members = ["exercism/rust/*", "digest", "openai-summarize"]

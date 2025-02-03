@@ -15,7 +15,7 @@ Collect posts from selected substacks, summarize, collect to telegraph post and 
 - [x] move regex to LazyLock
 - [x] implement telegraph api
 - [ ] implement telegram posting
-- [ ] implement openai api
+- [x] implement openai api
 - [ ] implement pubmed
 
 ## Ideas

@@ -4,7 +4,7 @@ version = "0.0.0"
 edition = "2021"
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["main"] }
 toml = "0"
 chrono = "0"
 html2text = "0"
@@ -14,3 +14,4 @@ rss = "2"
 serde = "1"
 serde_derive = "1"
 telegraph-rs = "0"
+async-openai = "0"
