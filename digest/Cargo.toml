@@ -1,17 +1,17 @@
 [package]
 name = "digest"
-version = "0.0.0"
+version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
-toml = "0"
-chrono = "0"
-html2text = "0"
-regex = "1"
-reqwest = { version = "0", features = ["blocking"] }
-rss = "2"
-serde = "1"
-serde_derive = "1"
-telegraph-rs = "0"
-async-openai = "0"
+toml = "0.8"
+chrono = "0.4"
+html2text = "0.13"
+regex = "1.11"
+reqwest = { version = "0.12", features = ["blocking"] }
+rss = "2.0"
+serde = "1.0"
+serde_derive = "1.0"
+telegraph-rs = "0.6"
+async-openai = "0.27"
