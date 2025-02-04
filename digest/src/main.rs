@@ -19,17 +19,9 @@ static URL_REGEX: sync::LazyLock<Regex> = sync::LazyLock::new(|| {
     Regex::new(r"(http|ftp|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?").unwrap()
 });
 
-fn main() {
-    let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
-
-    match rt.block_on(run()) {
-        Ok(_) => (),
-        Err(error) => {
-            println!("Error {error}");
-            std::process::exit(1)
-        }
-    }
-    std::process::exit(0)
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    run().await
 }
 
 async fn run() -> Result<(), Box<dyn Error>> {
