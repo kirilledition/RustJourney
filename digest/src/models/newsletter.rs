@@ -28,7 +28,9 @@ impl Newsletter {
                 println!("Open feed {}", feed.feed_url);
 
                 {
-                    feed.fetch_posts().unwrap()
+                    // TODO: Fix this
+                    todo!()
+                    // feed.fetch_posts().unwrap()
                 };
                 println!("Fetched feed posts");
                 feed

@@ -2,7 +2,7 @@ use chrono::{Duration, Utc};
 use regex::Regex;
 use serde::Deserialize;
 
-use crate::SECONDS_IN_WEEK;
+use crate::{errors::NewsletterError, SECONDS_IN_WEEK};
 
 use super::post::Post;
 
@@ -32,8 +32,8 @@ impl Feed {
         }
     }
 
-    pub fn fetch_posts(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let feed_bytes = reqwest::blocking::get(&self.feed_url)?.bytes()?;
+    pub async fn fetch_posts(&mut self) -> Result<(), NewsletterError> {
+        let feed_bytes = reqwest::get(&self.feed_url).await?.bytes().await?;
 
         let channel = rss::Channel::read_from(&feed_bytes[..])?;
 

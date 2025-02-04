@@ -1,6 +1,8 @@
+mod errors;
 mod models;
 
 use chrono::Utc;
+use errors::{ConfigError, NewsletterError};
 use models::{Newsletter, NewsletterConfig};
 use regex::Regex;
 use std::error::Error;
@@ -20,25 +22,16 @@ static URL_REGEX: sync::LazyLock<Regex> = sync::LazyLock::new(|| {
 });
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> Result<(), NewsletterError> {
     run().await
 }
 
-async fn run() -> Result<(), Box<dyn Error>> {
-    let config = match read_config(CONFIG_PATH) {
-        Ok(config) => config,
-        Err(error) => return Err(error),
-    };
-    let (mut newsletter, newsletter_text) =
-        match tokio::task::spawn_blocking(move || create_newsletter_html(config)).await? {
-            Ok(text) => text,
-            Err(error) => return Err(error),
-        };
+async fn run() -> Result<(), NewsletterError> {
+    let config = read_config(CONFIG_PATH)?;
 
-    match write_newsletter_to_file(&mut newsletter, newsletter_text) {
-        Ok(_) => (),
-        Err(error) => return Err(error),
-    };
+    let (mut newsletter, newsletter_text) = create_newsletter_html(config)?;
+
+    write_newsletter_to_file(&mut newsletter, newsletter_text)?;
 
     let page = post_to_telegraph(&mut newsletter).await;
     println!("{page:?}");
@@ -46,41 +39,30 @@ async fn run() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn read_config(config_path: &str) -> Result<NewsletterConfig, Box<dyn Error>> {
+fn read_config(config_path: &str) -> Result<NewsletterConfig, ConfigError> {
     let mut config_string = String::new();
-    let mut config_file = match File::open(config_path) {
-        Ok(file) => file,
-        Err(error) => return Err(error.into()),
-    };
+    let _ = File::open(config_path)?.read_to_string(&mut config_string)?;
 
-    match config_file.read_to_string(&mut config_string) {
-        Ok(_) => (),
-        Err(error) => return Err(error.into()),
-    }
-
-    match toml::from_str::<NewsletterConfig>(&config_string) {
-        Ok(config) => return Ok(config),
-        Err(error) => return Err(error.into()),
-    };
+    toml::from_str::<NewsletterConfig>(&config_string).map_err(|e| e.into())
 }
 
 fn create_newsletter_html(
     config: NewsletterConfig,
-) -> Result<(Newsletter, String), Box<dyn Error + Send>> {
+) -> Result<(Newsletter, String), NewsletterError> {
     let mut newsletter = Newsletter::from(config);
     let newsletter_text = newsletter.to_html();
     Ok((newsletter, newsletter_text))
 }
 
-#[allow(clippy::unused_io_amount)]
 fn write_newsletter_to_file(
     newsletter: &mut Newsletter,
     newsletter_text: String,
-) -> Result<(), Box<dyn Error>> {
-    match newsletter.output_file.write(newsletter_text.as_bytes()) {
-        Ok(_) => return Ok(()),
-        Err(error) => return Err(error.into()),
-    }
+) -> Result<(), NewsletterError> {
+    newsletter
+        .output_file
+        .write(newsletter_text.as_bytes())
+        .map(|_| ())
+        .map_err(|e| e.into())
 }
 
 pub async fn post_to_telegraph(newsletter: &mut Newsletter) -> telegraph_rs::Page {

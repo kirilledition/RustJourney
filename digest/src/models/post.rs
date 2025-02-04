@@ -1,8 +1,7 @@
 use chrono::{DateTime, Utc};
 
-use crate::{UNNECESSARY_SYMBOLS_REGEX, URL_REGEX};
+use crate::{errors::NewsletterError, UNNECESSARY_SYMBOLS_REGEX, URL_REGEX};
 
-use super::newsletter::Newsletter;
 use async_openai::{
     types::ChatCompletionRequestSystemMessageArgs, types::CreateChatCompletionRequestArgs, Client,
 };
@@ -16,7 +15,7 @@ pub struct Post {
     pub link: String,
 }
 
-async fn summarize(text_to_summarize: String) -> Result<String, Box<dyn std::error::Error>> {
+async fn summarize(text_to_summarize: String) -> Result<String, NewsletterError> {
     let summarization_prompt = String::from("Summarize the following text into a single text of no more than 280 characters. Focus on capturing the main takeaway and presenting it. Avoid excessive detail but ensure the core message is clear and engaging. Text:");
     let prompt = format!("{} {}", summarization_prompt, text_to_summarize);
 
@@ -34,11 +33,12 @@ async fn summarize(text_to_summarize: String) -> Result<String, Box<dyn std::err
 
     let response = client.chat().create(request).await?;
 
-    response.choices[0]
-        .message
-        .content
-        .clone()
-        .ok_or("error with message option".into())
+    response
+        .choices
+        .first()
+        .map(|m| m.message.content.clone())
+        .flatten()
+        .ok_or(NewsletterError::EmptyResponseError)
 }
 
 impl Post {
