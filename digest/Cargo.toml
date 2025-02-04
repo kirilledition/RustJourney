@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 toml = "0.8"
-chrono = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
 html2text = "0.13"
 regex = "1.11"
 reqwest = { version = "0.12", features = ["blocking"] }
@@ -16,3 +16,5 @@ serde_derive = "1.0"
 telegraph-rs = "0.6"
 async-openai = "0.27"
 thiserror = { version = "2.0" }
+config = "0.15"
+futures = "0.3.31"

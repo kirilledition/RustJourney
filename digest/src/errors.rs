@@ -1,30 +1,48 @@
 use thiserror::Error;
 
+use config::ConfigError as UConfigError;
+
 #[derive(Debug, Error)]
-pub enum ConfigError {
+pub(crate) enum NewsletterError {
     #[error(transparent)]
-    SourceNotValid(#[from] std::io::Error),
-    #[error("Could not parse toml")]
-    TomlParseError(#[from] toml::de::Error),
+    WriteIO(#[from] std::io::Error),
+
+    #[error(transparent)]
+    Reqwest(#[from] reqwest::Error),
+
+    #[error(transparent)]
+    Rss(#[from] rss::Error),
+
+    #[error(transparent)]
+    OpenAI(#[from] async_openai::error::OpenAIError),
+
+    #[error("Provider returned empty response")]
+    EmptyResponse,
+
+    #[error(transparent)]
+    Telegraph(#[from] telegraph_rs::Error),
+
+    #[error(transparent)]
+    Regex(#[from] regex::Error),
+
+    #[error(transparent)]
+    Config(#[from] ConfigError),
 }
 
 #[derive(Debug, Error)]
-pub enum NewsletterError {
-    #[error(transparent)]
-    WriteIOError(#[from] std::io::Error),
+pub enum ConfigError {
+    #[error("Failed to read configuration file: {source}")]
+    Read {
+        #[source]
+        source: UConfigError,
+    },
 
-    #[error(transparent)]
-    ReqwestError(#[from] reqwest::Error),
+    #[error("Failed to deserialize configuration: {source}")]
+    Deserialize {
+        #[source]
+        source: UConfigError,
+    },
 
-    #[error(transparent)]
-    RSSError(#[from] rss::Error),
-
-    #[error(transparent)]
-    OpenAIError(#[from] async_openai::error::OpenAIError),
-
-    #[error("Provider returned empty response")]
-    EmptyResponseError,
-
-    #[error(transparent)]
-    ConfigError(#[from] ConfigError),
+    #[error("Failed to parse date from config")]
+    ParseDate,
 }

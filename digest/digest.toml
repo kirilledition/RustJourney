@@ -1,10 +1,18 @@
-# period = "week"
-# date_from = "now" # "2021-01-01"
 title = "Kirusha's Digest"
 output_file = "example_digest.html"
+
+[feeds]
 feeds = [
     { name = "Scott Alexander", feed_url = "https://www.astralcodexten.com/feed", regex_filter = "(?i)(open thread|classfields)" },
     { name = "Robin Hanson", feed_url = "http://www.overcomingbias.com/feed", regex_filter = "$^" },
 ]
-# summarization_prompt
-# summarization_model
+# Using a named range:
+period = "week"
+# Or using an explicit range:
+# period = { from = "2024-01-01T00:00:00Z", to = "2024-02-01T00:00:00Z" }
+
+[model]
+prompt = """Summarize the following text into a single text of no more than 280 characters. \
+Focus on capturing the main takeaway and presenting it. Avoid excessive detail but ensure \
+the core message is clear and engaging. Text:"""
+name = "gpt-4o-mini"

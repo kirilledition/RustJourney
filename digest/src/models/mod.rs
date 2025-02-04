@@ -2,4 +2,5 @@ mod feed;
 mod newsletter;
 mod post;
 
-pub use newsletter::{Newsletter, NewsletterConfig};
+pub(crate) use feed::Fetched;
+pub(crate) use newsletter::Newsletter;

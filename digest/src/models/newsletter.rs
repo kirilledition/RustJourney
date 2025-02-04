@@ -1,60 +1,65 @@
-use serde::Deserialize;
-use std::fs::File;
+use crate::config::{AppConfig, ModelConfig, TimeRange};
 
-use super::feed::{Feed, FeedConfig};
+use super::feed::{Feed, Fetched, Unfetched};
 
 #[derive(Debug)]
-pub struct Newsletter {
-    pub title: String,
-    pub output_file: File,
-    pub feeds: Vec<Feed>,
+pub(crate) struct Newsletter<S> {
+    pub(crate) title: String,
+    pub(crate) feeds: Vec<Feed<S>>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct NewsletterConfig {
-    title: String,
-    output_file: String,
-    feeds: Vec<FeedConfig>,
-}
-
-impl Newsletter {
-    pub fn from(config: NewsletterConfig) -> Self {
-        let feeds = config
+impl From<AppConfig> for Newsletter<Unfetched> {
+    fn from(value: AppConfig) -> Self {
+        let feeds = value
             .feeds
-            .iter()
-            .cloned()
-            .map(|feed_config| {
-                let mut feed = Feed::from(feed_config);
-                println!("Open feed {}", feed.feed_url);
-
-                {
-                    // TODO: Fix this
-                    todo!()
-                    // feed.fetch_posts().unwrap()
-                };
-                println!("Fetched feed posts");
-                feed
+            .feeds
+            .into_iter()
+            .filter_map(|feed_config| {
+                let feed = Feed::new(feed_config);
+                feed.ok()
             })
             .collect();
 
-        let output_file = File::create(config.output_file).unwrap();
-        println!("Open output file");
         Self {
-            title: config.title,
-            output_file,
+            title: value.title,
             feeds,
         }
     }
+}
 
-    pub fn to_html(&mut self) -> String {
+impl Newsletter<Unfetched> {
+    pub(crate) async fn into_fetched(self, time_range: TimeRange) -> Newsletter<Fetched> {
+        let Newsletter {
+            title,
+            feeds: old_feeds,
+        } = self;
+
+        // TODO: Rewrite this to a true async closure when 1.85 lands
+        let feeds: Vec<_> = old_feeds
+            .into_iter()
+            .map(move |feed| async move { feed.fetch(time_range).await.ok() })
+            .collect::<Vec<_>>();
+
+        let feeds = futures::future::join_all(feeds)
+            .await
+            .into_iter()
+            .flatten()
+            .collect();
+
+        Newsletter { title, feeds }
+    }
+}
+
+impl Newsletter<Fetched> {
+    pub(crate) async fn to_html(&self, config: &ModelConfig) -> String {
         let mut newsletter_text = String::new();
 
-        for feed in self.feeds.iter_mut() {
+        for feed in self.feeds.iter() {
             let feed_title = format!("<h3>{}</h3>", feed.name);
             newsletter_text.push_str(&feed_title);
 
-            for post in feed.posts.iter_mut() {
-                let post_text = post.to_html();
+            for post in feed.posts().iter() {
+                let post_text = post.to_html(config).await;
 
                 newsletter_text.push_str(&post_text);
             }

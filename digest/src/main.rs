@@ -1,18 +1,17 @@
+mod config;
 mod errors;
 mod models;
 
 use chrono::Utc;
+use config::{AppConfig, ModelConfig, TimeRange};
 use errors::{ConfigError, NewsletterError};
-use models::{Newsletter, NewsletterConfig};
+use models::{Fetched, Newsletter};
 use regex::Regex;
-use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
 use std::sync;
 
-const CONFIG_PATH: &str = "digest.toml";
-// const SECONDS_IN_WEEK: i64 = 604800;
-const SECONDS_IN_WEEK: i64 = 1204800;
+const CONFIG_BASENAME: &str = "digest";
 
 static UNNECESSARY_SYMBOLS_REGEX: sync::LazyLock<Regex> =
     sync::LazyLock::new(|| Regex::new(r"[\[\]\*\n]").unwrap());
@@ -21,57 +20,53 @@ static URL_REGEX: sync::LazyLock<Regex> = sync::LazyLock::new(|| {
     Regex::new(r"(http|ftp|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?").unwrap()
 });
 
+pub(crate) type Result<T, E = NewsletterError> = std::result::Result<T, E>;
+
 #[tokio::main]
-async fn main() -> Result<(), NewsletterError> {
+async fn main() -> Result<()> {
     run().await
 }
 
-async fn run() -> Result<(), NewsletterError> {
-    let config = read_config(CONFIG_PATH)?;
+async fn run() -> Result<()> {
+    let config = AppConfig::new(CONFIG_BASENAME)?;
 
-    let (mut newsletter, newsletter_text) = create_newsletter_html(config)?;
+    let mut output_file = File::create(&config.output_file)?;
 
-    write_newsletter_to_file(&mut newsletter, newsletter_text)?;
+    let mut newsletter = fetch_newsletter(config.clone()).await?;
+    let newsletter_text = newsletter.to_html(&config.model).await;
 
-    let page = post_to_telegraph(&mut newsletter).await;
+    write_newsletter_to_file(newsletter_text, &mut output_file)?;
+
+    let page = post_to_telegraph(&mut newsletter, &config.model).await;
     println!("{page:?}");
 
     Ok(())
 }
 
-fn read_config(config_path: &str) -> Result<NewsletterConfig, ConfigError> {
-    let mut config_string = String::new();
-    let _ = File::open(config_path)?.read_to_string(&mut config_string)?;
-
-    toml::from_str::<NewsletterConfig>(&config_string).map_err(|e| e.into())
+pub(crate) async fn fetch_newsletter(config: AppConfig) -> Result<Newsletter<Fetched>> {
+    let tr = TimeRange::parse_feeds_config(&config.feeds).ok_or_else(|| ConfigError::ParseDate)?;
+    let newsletter = Newsletter::from(config);
+    let newsletter = newsletter.into_fetched(tr).await;
+    Ok(newsletter)
 }
 
-fn create_newsletter_html(
-    config: NewsletterConfig,
-) -> Result<(Newsletter, String), NewsletterError> {
-    let mut newsletter = Newsletter::from(config);
-    let newsletter_text = newsletter.to_html();
-    Ok((newsletter, newsletter_text))
-}
-
-fn write_newsletter_to_file(
-    newsletter: &mut Newsletter,
-    newsletter_text: String,
-) -> Result<(), NewsletterError> {
-    newsletter
-        .output_file
+#[inline(always)]
+fn write_newsletter_to_file(newsletter_text: String, output_file: &mut File) -> Result<()> {
+    output_file
         .write(newsletter_text.as_bytes())
         .map(|_| ())
         .map_err(|e| e.into())
 }
 
-pub async fn post_to_telegraph(newsletter: &mut Newsletter) -> telegraph_rs::Page {
+pub(crate) async fn post_to_telegraph(
+    newsletter: &mut Newsletter<Fetched>,
+    config: &ModelConfig,
+) -> Result<telegraph_rs::Page> {
     let telegraph = telegraph_rs::Telegraph::new(&newsletter.title)
         .create()
-        .await
-        .unwrap();
+        .await?;
     println!("created telegraph object");
-    let newsletter_text = newsletter.to_html();
+    let newsletter_text = newsletter.to_html(config).await;
     println!("created newsletter text");
 
     let newsletter_title = format!(
@@ -86,9 +81,8 @@ pub async fn post_to_telegraph(newsletter: &mut Newsletter) -> telegraph_rs::Pag
 
     let page = telegraph
         .create_page(newsletter_title.as_str(), &node_text, false)
-        .await
-        .unwrap();
+        .await?;
     println!("posted page");
 
-    page
+    Ok(page)
 }

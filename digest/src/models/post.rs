@@ -1,69 +1,57 @@
 use chrono::{DateTime, Utc};
 
-use crate::{errors::NewsletterError, UNNECESSARY_SYMBOLS_REGEX, URL_REGEX};
+use crate::{
+    config::ModelConfig, errors::NewsletterError, Result, UNNECESSARY_SYMBOLS_REGEX, URL_REGEX,
+};
 
 use async_openai::{
     types::ChatCompletionRequestSystemMessageArgs, types::CreateChatCompletionRequestArgs, Client,
 };
 
 #[derive(Debug)]
-pub struct Post {
-    pub title: String,
-    pub content: String,
-    pub summary: String,
-    pub publication_date: DateTime<Utc>,
-    pub link: String,
-}
-
-async fn summarize(text_to_summarize: String) -> Result<String, NewsletterError> {
-    let summarization_prompt = String::from("Summarize the following text into a single text of no more than 280 characters. Focus on capturing the main takeaway and presenting it. Avoid excessive detail but ensure the core message is clear and engaging. Text:");
-    let prompt = format!("{} {}", summarization_prompt, text_to_summarize);
-
-    let client = Client::new();
-
-    // single
-    let request = CreateChatCompletionRequestArgs::default()
-        .model("gpt-4o-mini")
-        .messages([ChatCompletionRequestSystemMessageArgs::default()
-            .content(prompt)
-            .build()?
-            .into()])
-        .max_tokens(280_u32)
-        .build()?;
-
-    let response = client.chat().create(request).await?;
-
-    response
-        .choices
-        .first()
-        .map(|m| m.message.content.clone())
-        .flatten()
-        .ok_or(NewsletterError::EmptyResponseError)
+pub(crate) struct Post {
+    pub(crate) title: String,
+    pub(crate) content: String,
+    pub(crate) publication_date: DateTime<Utc>,
+    pub(crate) link: String,
 }
 
 impl Post {
-    // fn summarize(&mut self) {
-    //     if self.summary.len() < 280 {
-    //         self.summary = self.content[0..280].to_string()
-    //     }
-    // }
+    async fn summarize(&self, config: &ModelConfig) -> Result<String> {
+        let prompt = format!("{} {}", config.prompt, self.content);
 
-    fn summarize(&mut self) {
-        self.summary = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(summarize(self.content.clone()))
-        })
-        .unwrap_or_else(|_| String::from("Empty summary"));
+        let client = Client::new();
+
+        // single
+        let request = CreateChatCompletionRequestArgs::default()
+            .model(config.name.as_str())
+            .messages([ChatCompletionRequestSystemMessageArgs::default()
+                .content(prompt)
+                .build()?
+                .into()])
+            .max_tokens(280_u32)
+            .build()?;
+
+        let response = client.chat().create(request).await?;
+
+        response
+            .choices
+            .first()
+            .and_then(|m| m.message.content.clone())
+            .ok_or(NewsletterError::EmptyResponse)
     }
 
-    pub fn to_html(&mut self) -> String {
-        self.summarize();
-        format!(
-            "<h4><a href={}>{}</a></h4><i>On {}: </i><p> {}</p>",
+    pub(crate) async fn to_html(&self, config: &ModelConfig) -> String {
+        let mut html = format!(
+            "<h4><a href={}>{}</a></h4><i>On {}: </i>",
             self.link,
             self.title,
             self.publication_date.format("%A"),
-            self.summary
-        )
+        );
+        if let Ok(summary) = self.summarize(config).await {
+            html.push_str(format!("<p> {summary}</p>").as_str());
+        }
+        html
     }
 }
 
@@ -73,16 +61,15 @@ impl From<&rss::Item> for Post {
             title: item.title().map_or_else(String::new, String::from),
             link: item.link().map_or_else(String::new, String::from),
             content: item.content().map_or_else(String::new, |text| {
-                let plain_text = html2text::from_read(&text.as_bytes()[..], text.len()).unwrap();
+                let plain_text = html2text::from_read(text.as_bytes(), text.len()).unwrap();
                 let text_without_urls = URL_REGEX.replace_all(plain_text.as_str(), "").to_string();
                 UNNECESSARY_SYMBOLS_REGEX
-                    .replace_all(&text_without_urls.as_str(), "")
+                    .replace_all(text_without_urls.as_str(), "")
                     .to_string()
             }),
             publication_date: DateTime::parse_from_rfc2822(item.pub_date().unwrap_or_default())
                 .unwrap_or_default()
                 .with_timezone(&Utc),
-            summary: String::new(),
         }
     }
 }
