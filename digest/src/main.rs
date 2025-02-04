@@ -1,3 +1,4 @@
+// use async_openai::config::OpenAIConfig;
 use async_openai::{
     types::ChatCompletionRequestSystemMessageArgs, types::CreateChatCompletionRequestArgs, Client,
 };
@@ -10,7 +11,8 @@ use std::io::prelude::*;
 use std::sync;
 
 const CONFIG_PATH: &str = "digest.toml";
-const SECONDS_IN_WEEK: i64 = 604800;
+// const SECONDS_IN_WEEK: i64 = 604800;
+const SECONDS_IN_WEEK: i64 = 1204800;
 
 static UNNECESSARY_SYMBOLS_REGEX: sync::LazyLock<Regex> =
     sync::LazyLock::new(|| Regex::new(r"[\[\]\*\n]").unwrap());
@@ -283,9 +285,10 @@ async fn summarize(text_to_summarize: String) -> Result<String, Box<dyn Error>> 
     let summarization_prompt = String::from("Summarize the following text into a single text of no more than 280 characters. Focus on capturing the main takeaway and presenting it. Avoid excessive detail but ensure the core message is clear and engaging. Text:");
     let prompt = format!("{} {}", summarization_prompt, text_to_summarize);
 
+    // let config = OpenAIConfig::new().with_api_base("https://api.perplexity.ai");
+    // let client = Client::with_config(config);
     let client = Client::new();
 
-    // single
     let request = CreateChatCompletionRequestArgs::default()
         .model("gpt-4o-mini")
         .messages([ChatCompletionRequestSystemMessageArgs::default()
