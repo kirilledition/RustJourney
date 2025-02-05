@@ -26,6 +26,7 @@ pub(crate) enum TimeRange {
 impl TimeRange {
     fn from_config(config: TimeRangeConfig) -> Option<Self> {
         let now = Utc::now();
+        // TODO: Look into https://github.com/uutils/parse_datetime/blob/main/src/parse_relative_time.rs
         match config {
             TimeRangeConfig::Named(name) => match name.to_lowercase().as_str() {
                 "all" => Some(TimeRange::AllTime),

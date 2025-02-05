@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use tracing::warn;
 
 use crate::{
     config::ModelConfig, errors::NewsletterError, Result, UNNECESSARY_SYMBOLS_REGEX, URL_REGEX,
@@ -48,8 +49,12 @@ impl Post {
             self.title,
             self.publication_date.format("%A"),
         );
-        if let Ok(summary) = self.summarize(config).await {
-            html.push_str(format!("<p> {summary}</p>").as_str());
+        match self.summarize(config).await {
+            Ok(summary) => html.push_str(format!("<p>{summary}</p>").as_str()),
+            Err(e) => {
+                warn!("Could not summarize {}: {e}", self.title);
+                html.push_str("<p>Could not provide a concise summary..</p>");
+            }
         }
         html
     }

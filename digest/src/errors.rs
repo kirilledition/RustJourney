@@ -19,6 +19,9 @@ pub(crate) enum NewsletterError {
     #[error("Provider returned empty response")]
     EmptyResponse,
 
+    #[error("Could not set global tracing subscriber")]
+    TracingGlobalDefault(#[from] tracing::dispatcher::SetGlobalDefaultError),
+
     #[error(transparent)]
     Telegraph(#[from] telegraph_rs::Error),
 

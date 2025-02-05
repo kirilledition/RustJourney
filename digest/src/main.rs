@@ -10,6 +10,7 @@ use regex::Regex;
 use std::fs::File;
 use std::io::prelude::*;
 use std::sync;
+use tracing::{debug, info, Level};
 
 const CONFIG_BASENAME: &str = "digest";
 
@@ -24,21 +25,33 @@ pub(crate) type Result<T, E = NewsletterError> = std::result::Result<T, E>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let subscriber = tracing_subscriber::fmt()
+        .with_file(true)
+        .with_line_number(true)
+        .pretty()
+        .with_max_level(Level::DEBUG)
+        .finish();
+
+    tracing::subscriber::set_global_default(subscriber)?;
     run().await
 }
 
 async fn run() -> Result<()> {
     let config = AppConfig::new(CONFIG_BASENAME)?;
+    debug!("Received config: {config:?}");
 
     let mut output_file = File::create(&config.output_file)?;
+    info!("Will write to {}", config.output_file);
 
+    info!("Fetching newsletter");
     let mut newsletter = fetch_newsletter(config.clone()).await?;
     let newsletter_text = newsletter.to_html(&config.model).await;
 
     write_newsletter_to_file(newsletter_text, &mut output_file)?;
 
+    info!("Posting to telegraph");
     let page = post_to_telegraph(&mut newsletter, &config.model).await;
-    println!("{page:?}");
+    debug!("{page:?}");
 
     Ok(())
 }
@@ -65,24 +78,24 @@ pub(crate) async fn post_to_telegraph(
     let telegraph = telegraph_rs::Telegraph::new(&newsletter.title)
         .create()
         .await?;
-    println!("created telegraph object");
+    debug!("created telegraph object");
     let newsletter_text = newsletter.to_html(config).await;
-    println!("created newsletter text");
+    debug!("created newsletter text");
 
     let newsletter_title = format!(
         "{} for {}",
         &newsletter.title,
         Utc::now().format("week %W (%e %B)")
     );
-    println!("created newsletter title");
+    debug!("created newsletter title");
 
     let node_text = telegraph_rs::html_to_node(newsletter_text.as_str());
-    println!("created newsletter nodes {node_text:?}");
+    debug!("created newsletter nodes {node_text:?}");
 
     let page = telegraph
         .create_page(newsletter_title.as_str(), &node_text, false)
         .await?;
-    println!("posted page");
+    debug!("posted page");
 
     Ok(page)
 }
