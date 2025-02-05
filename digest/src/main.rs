@@ -47,7 +47,7 @@ async fn run() -> Result<()> {
     let mut newsletter = fetch_newsletter(config.clone()).await?;
     let newsletter_text = newsletter.to_html(&config.model).await;
 
-    write_newsletter_to_file(newsletter_text, &mut output_file)?;
+    output_file.write_all(newsletter_text.as_bytes())?;
 
     info!("Posting to telegraph");
     let page = post_to_telegraph(&mut newsletter, &config.model).await;
@@ -61,14 +61,6 @@ pub(crate) async fn fetch_newsletter(config: AppConfig) -> Result<Newsletter<Fet
     let newsletter = Newsletter::from(config);
     let newsletter = newsletter.into_fetched(tr).await;
     Ok(newsletter)
-}
-
-#[inline(always)]
-fn write_newsletter_to_file(newsletter_text: String, output_file: &mut File) -> Result<()> {
-    output_file
-        .write(newsletter_text.as_bytes())
-        .map(|_| ())
-        .map_err(|e| e.into())
 }
 
 pub(crate) async fn post_to_telegraph(
