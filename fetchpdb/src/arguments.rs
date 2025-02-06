@@ -1,3 +1,5 @@
+// use std::path;
+
 use clap::Parser;
 
 #[derive(Parser, Debug)]
@@ -9,4 +11,10 @@ use clap::Parser;
 pub struct Arguments {
     #[arg(required = true, help = "PDB codes to download")]
     pub codes: Vec<String>,
+    // #[arg(
+    //     short,
+    //     long = "output",
+    //     help = "Path to directory where to download files"
+    // )]
+    // pub output_path: path::PathBuf,
 }
