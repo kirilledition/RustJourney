@@ -1,36 +1,55 @@
-use bytes;
-use std::{
-    error::Error,
-    io::{self, Write},
-};
+use bytes::Bytes;
+use clap::Parser;
+use reqwest::Url;
+use std::{error::Error, fs, io::Write};
 
 const URL_BASE: &str = "https://files.rcsb.org/download";
 // cargo run 4hhb
 
+#[derive(Parser, Debug)]
+#[command(
+    version,
+    author = "Kirill Denisov",
+    about = "Program that downloads pdb structure files"
+)]
+struct Arguments {
+    #[arg(required = true, help = "PDB codes to download")]
+    codes: Vec<String>,
+}
+
 struct Context {
     client: reqwest::blocking::Client,
+    base_url: Url,
 }
 
 impl Context {
     fn new() -> Self {
         Self {
             client: reqwest::blocking::Client::new(),
+            base_url: Url::parse(URL_BASE).expect("pdb base url was wrong"),
         }
     }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let pdb_code = std::env::args().nth(1).ok_or("no code provided")?;
+    tracing_subscriber::fmt().json().flatten_event(true).init();
 
+    let arguments = Arguments::parse();
     let context = Context::new();
-    let pdb_text = download_pdb(&pdb_code, context)?;
-    io::stdout().write_all(&pdb_text)?;
+
+    for code in arguments.codes {
+        let pdb_text = download_pdb(&code, &context)?;
+        let filename = format!("{code}.pdb");
+        tracing::info!("Writing {}", filename);
+        let mut file = fs::File::create(filename)?;
+        file.write_all(&pdb_text)?;
+    }
+
     Ok(())
 }
 
-fn download_pdb(code: &str, context: Context) -> Result<bytes::Bytes, Box<dyn Error>> {
-    let url = format!("{URL_BASE}/{code}.pdb");
+fn download_pdb(code: &str, context: &Context) -> Result<Bytes, Box<dyn Error>> {
+    let url = context.base_url.join(code)?;
     let response = context.client.get(url).send()?;
-
     Ok(response.bytes()?)
 }
