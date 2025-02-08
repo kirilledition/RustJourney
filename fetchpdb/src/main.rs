@@ -1,44 +1,59 @@
 mod arguments;
-mod context;
-
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 
-use bytes::Bytes;
 use clap::Parser;
 use std::error::Error;
-// cargo run 4hhb 8pvw 9cq5 9bwf
+use std::path::PathBuf;
+// fetchpdb 4hhb 8pvw 9cq5 9bwf asf --output downloaded/
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    tracing_subscriber::fmt().json().flatten_event(true).init();
+    tracing_subscriber::fmt()
+        // .with_max_level(tracing::Level::WARN)
+        .json()
+        .flatten_event(true)
+        .init();
 
     let arguments = arguments::Arguments::parse();
-    let context = context::Context::new();
 
-    download_multiple_pdb(arguments.codes, &context).await
+    fetchpdb(arguments.codes, arguments.output_path).await
 }
 
-async fn download_pdb(code: &str, context: &context::Context) -> Result<Bytes, Box<dyn Error>> {
-    let url = context.base_url.join(code)?;
-    let response = context.client.get(url).send().await?;
-    response
-        .bytes()
-        .await
-        .map_err(|error| Box::new(error) as Box<dyn Error>)
-}
+const BASE_URL: &str = "https://files.rcsb.org/download/";
 
-async fn download_multiple_pdb(
-    codes: Vec<String>,
-    context: &context::Context,
-) -> Result<(), Box<dyn Error>> {
-    let download_jobs = codes.iter().map(move |code| async move {
-        let pdb_text = download_pdb(&code, &context).await?;
-        let filename = format!("{code}.pdb");
-        tracing::info!("Writing {}", filename);
-        let mut file = fs::File::create(filename).await?;
-        file.write_all(&pdb_text).await?;
-        Ok::<(), Box<dyn std::error::Error>>(())
+async fn fetchpdb(codes: Vec<String>, path: PathBuf) -> Result<(), Box<dyn Error>> {
+    let client = reqwest::Client::new();
+    let base_url = reqwest::Url::parse(BASE_URL)?;
+
+    if !path.is_dir() {
+        fs::create_dir_all(path.clone()).await?;
+        tracing::info!("Creating directory {}", path.display());
+    };
+
+    let download_jobs = codes.iter().map(move |code| {
+        let client = client.clone();
+        let base_url = base_url.clone();
+        let path = path.clone();
+
+        async move {
+            let pdb_filename = PathBuf::from(code).with_extension("pdb");
+            let url = base_url.join(pdb_filename.to_str().unwrap())?;
+
+            let response = client.get(url).send().await?;
+            if !response.status().is_success() {
+                tracing::warn!("Request for {code} was unsuccessfull");
+                return Ok(());
+            }
+
+            let pdb_text = response.bytes().await?;
+            let filename = path.join(pdb_filename);
+
+            tracing::info!("Writing {}", filename.display());
+            let mut file = fs::File::create(filename).await?;
+            file.write_all(&pdb_text).await?;
+            Ok::<(), Box<dyn Error>>(())
+        }
     });
 
     futures::future::join_all(download_jobs).await;
