@@ -10,7 +10,7 @@ use std::path::PathBuf;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt()
-        // .with_max_level(tracing::Level::WARN)
+        .with_target(false)
         .json()
         .flatten_event(true)
         .init();
