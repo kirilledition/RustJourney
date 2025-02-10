@@ -5,7 +5,7 @@ use tokio::io::AsyncWriteExt;
 use clap::Parser;
 use std::error::Error;
 use std::path::PathBuf;
-// fetchpdb 4hhb 8pvw 9cq5 9bwf asf --output downloaded/
+// cargo run fetchpdb 4hhb 8pvw 9cq5 9bwf asf --output downloaded/
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -15,26 +15,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .flatten_event(true)
         .init();
 
-    let arguments = arguments::Arguments::parse();
+    let cli = arguments::Cli::parse();
 
-    fetchpdb(arguments.codes, arguments.output_path).await
+    match &cli.command {
+        arguments::Commands::Fetchpdb(arguments) => fetchpdb(arguments).await,
+    }
 }
 
-const BASE_URL: &str = "https://files.rcsb.org/download/";
-
-async fn fetchpdb(codes: Vec<String>, path: PathBuf) -> Result<(), Box<dyn Error>> {
+async fn fetchpdb(arguments: &arguments::FetchpdbArguments) -> Result<(), Box<dyn Error>> {
+    const BASE_URL: &str = "https://files.rcsb.org/download/";
     let client = reqwest::Client::new();
     let base_url = reqwest::Url::parse(BASE_URL)?;
 
-    if !path.is_dir() {
-        fs::create_dir_all(path.clone()).await?;
-        tracing::info!("Creating directory {}", path.display());
+    if !arguments.output_path.is_dir() {
+        fs::create_dir_all(arguments.output_path.clone()).await?;
+        tracing::info!("Creating directory {}", arguments.output_path.display());
     };
 
-    let download_jobs = codes.iter().map(move |code| {
+    let download_jobs = arguments.codes.iter().map(move |code| {
         let client = client.clone();
         let base_url = base_url.clone();
-        let path = path.clone();
+        let path = arguments.output_path.clone();
 
         async move {
             let pdb_filename = PathBuf::from(code).with_extension("pdb");
