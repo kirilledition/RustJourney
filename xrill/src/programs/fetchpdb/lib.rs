@@ -1,13 +1,12 @@
 use clap::Args;
 use std::error::Error;
 use std::path;
-use std::path::PathBuf;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 
 const BASE_URL: &str = "https://files.rcsb.org/download/";
 
-#[derive(Args, Debug)]
+#[derive(Args)]
 pub struct Arguments {
     #[arg(required = true, help = "PDB codes to download")]
     pub codes: Vec<String>,
@@ -35,7 +34,7 @@ pub async fn run(arguments: &Arguments) -> Result<(), Box<dyn Error>> {
         let path = arguments.output_path.clone();
 
         async move {
-            let pdb_filename = PathBuf::from(code).with_extension("pdb");
+            let pdb_filename = path::PathBuf::from(code).with_extension("pdb");
             let url = base_url.join(pdb_filename.to_str().unwrap())?;
 
             let response = client.get(url).send().await?;

@@ -17,11 +17,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     match &cli.command {
         Commands::Fetchpdb(arguments) => programs::fetchpdb::run(arguments).await,
+        Commands::Parquetify(arguments) => programs::parquetify::run(arguments),
     }
 }
 
 #[derive(Parser)]
-#[command(version, about, long_about = None)]
+#[command(version, about)]
 #[command(propagate_version = true)]
 pub struct CLI {
     #[command(subcommand)]
@@ -30,5 +31,8 @@ pub struct CLI {
 
 #[derive(Subcommand)]
 pub enum Commands {
+    #[command(about = "Program to download list of PDB structure files")]
     Fetchpdb(programs::fetchpdb::Arguments),
+    #[command(about = "Program to convert text table file to parquet file")]
+    Parquetify(programs::parquetify::Arguments),
 }
