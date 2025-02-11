@@ -1,18 +1,18 @@
-// use async_openai::config::OpenAIConfig;
-use async_openai::{
-    types::ChatCompletionRequestSystemMessageArgs, types::CreateChatCompletionRequestArgs, Client,
-};
-use chrono::{DateTime, Duration, Utc};
+mod config;
+mod errors;
+mod models;
+
+use chrono::Utc;
+use config::{AppConfig, ModelConfig, TimeRange};
+use errors::{ConfigError, NewsletterError};
+use models::{Fetched, Newsletter};
 use regex::Regex;
-use serde_derive::Deserialize;
-use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
 use std::sync;
+use tracing::{debug, info, Level};
 
-const CONFIG_PATH: &str = "digest.toml";
-// const SECONDS_IN_WEEK: i64 = 604800;
-const SECONDS_IN_WEEK: i64 = 1204800;
+const CONFIG_BASENAME: &str = "digest";
 
 static UNNECESSARY_SYMBOLS_REGEX: sync::LazyLock<Regex> =
     sync::LazyLock::new(|| Regex::new(r"[\[\]\*\n]").unwrap());
@@ -21,288 +21,73 @@ static URL_REGEX: sync::LazyLock<Regex> = sync::LazyLock::new(|| {
     Regex::new(r"(http|ftp|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?").unwrap()
 });
 
-fn main() {
-    let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+pub(crate) type Result<T, E = NewsletterError> = std::result::Result<T, E>;
 
-    match rt.block_on(run()) {
-        Ok(_) => (),
-        Err(error) => {
-            println!("Error {error}");
-            std::process::exit(1)
-        }
-    }
-    std::process::exit(0)
+#[tokio::main]
+async fn main() -> Result<()> {
+    let subscriber = tracing_subscriber::fmt()
+        .with_file(true)
+        .with_line_number(true)
+        .pretty()
+        .with_max_level(Level::DEBUG)
+        .finish();
+
+    tracing::subscriber::set_global_default(subscriber)?;
+    run().await
 }
 
-async fn run() -> Result<(), Box<dyn Error>> {
-    let config = match read_config(CONFIG_PATH) {
-        Ok(config) => config,
-        Err(error) => return Err(error),
-    };
-    let (mut newsletter, newsletter_text) =
-        match tokio::task::spawn_blocking(move || create_newsletter_html(config)).await? {
-            Ok(text) => text,
-            Err(error) => return Err(error),
-        };
+async fn run() -> Result<()> {
+    let config = AppConfig::new(CONFIG_BASENAME)?;
+    debug!("Received config: {config:?}");
 
-    match write_newsletter_to_file(&mut newsletter, newsletter_text) {
-        Ok(_) => (),
-        Err(error) => return Err(error),
-    };
+    let mut output_file = File::create(&config.output_file)?;
+    info!("Will write to {}", config.output_file);
 
-    let page = post_to_telegraph(&mut newsletter).await;
-    println!("{page:?}");
+    info!("Fetching newsletter");
+    let mut newsletter = fetch_newsletter(config.clone()).await?;
+    let newsletter_text = newsletter.to_html(&config.model).await;
+
+    output_file.write_all(newsletter_text.as_bytes())?;
+
+    info!("Posting to telegraph");
+    let page = post_to_telegraph(&mut newsletter, &config.model).await;
+    debug!("{page:?}");
 
     Ok(())
 }
 
-fn read_config(config_path: &str) -> Result<NewsletterConfig, Box<dyn Error>> {
-    let mut config_string = String::new();
-    let mut config_file = match File::open(config_path) {
-        Ok(file) => file,
-        Err(error) => return Err(error.into()),
-    };
-
-    match config_file.read_to_string(&mut config_string) {
-        Ok(_) => (),
-        Err(error) => return Err(error.into()),
-    }
-
-    match toml::from_str::<NewsletterConfig>(&config_string) {
-        Ok(config) => return Ok(config),
-        Err(error) => return Err(error.into()),
-    };
+pub(crate) async fn fetch_newsletter(config: AppConfig) -> Result<Newsletter<Fetched>> {
+    let tr = TimeRange::parse_feeds_config(&config.feeds).ok_or_else(|| ConfigError::ParseDate)?;
+    let newsletter = Newsletter::from(config);
+    let newsletter = newsletter.into_fetched(tr).await;
+    Ok(newsletter)
 }
 
-fn create_newsletter_html(
-    config: NewsletterConfig,
-) -> Result<(Newsletter, String), Box<dyn Error + Send>> {
-    let mut newsletter = Newsletter::from(config);
-    let newsletter_text = newsletter.to_html();
-    Ok((newsletter, newsletter_text))
-}
-
-fn write_newsletter_to_file(
-    newsletter: &mut Newsletter,
-    newsletter_text: String,
-) -> Result<(), Box<dyn Error>> {
-    match newsletter.output_file.write(newsletter_text.as_bytes()) {
-        Ok(_) => return Ok(()),
-        Err(error) => return Err(error.into()),
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct NewsletterConfig {
-    title: String,
-    output_file: String,
-    feeds: Vec<FeedConfig>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct FeedConfig {
-    name: String,
-    feed_url: String,
-    regex_filter: String,
-}
-
-#[derive(Debug)]
-struct Newsletter {
-    title: String,
-    output_file: File,
-    feeds: Vec<Feed>,
-}
-
-impl Newsletter {
-    fn from(config: NewsletterConfig) -> Self {
-        let feeds = config
-            .feeds
-            .iter()
-            .cloned()
-            .map(|feed_config| {
-                let mut feed = Feed::from(feed_config);
-                println!("Open feed {}", feed.feed_url);
-
-                {
-                    feed.fetch_posts().unwrap()
-                };
-                println!("Fetched feed posts");
-                feed
-            })
-            .collect();
-
-        let output_file = File::create(config.output_file).unwrap();
-        println!("Open output file");
-        Self {
-            title: config.title,
-            output_file,
-            feeds,
-        }
-    }
-
-    fn to_html(&mut self) -> String {
-        let mut newsletter_text = String::new();
-
-        for feed in self.feeds.iter_mut() {
-            let feed_title = format!("<h3>{}</h3>", feed.name);
-            newsletter_text.push_str(&feed_title);
-
-            for post in feed.posts.iter_mut() {
-                let post_text = post.to_html();
-
-                newsletter_text.push_str(&post_text);
-            }
-        }
-
-        newsletter_text
-    }
-}
-#[derive(Debug)]
-struct Feed {
-    name: String,
-    feed_url: String,
-    regex_filter: Regex,
-    posts: Vec<Post>,
-}
-
-impl Feed {
-    fn from(config: FeedConfig) -> Self {
-        let regex_filter = Regex::new(&config.regex_filter).unwrap();
-        Self {
-            name: config.name,
-            feed_url: config.feed_url,
-            regex_filter,
-            posts: vec![],
-        }
-    }
-
-    fn fetch_posts(&mut self) -> Result<(), Box<dyn Error>> {
-        let feed_bytes = reqwest::blocking::get(&self.feed_url)?.bytes()?;
-
-        let channel = rss::Channel::read_from(&feed_bytes[..])?;
-
-        self.posts = channel
-            .items()
-            .iter()
-            .map(Post::from)
-            .filter(|post| {
-                println!("Filtering {}", post.link);
-                let week_ago =
-                    post.publication_date > Utc::now() - Duration::seconds(SECONDS_IN_WEEK);
-                let filter_words = !self.regex_filter.is_match(&post.title);
-                week_ago & filter_words
-            })
-            .collect::<Vec<Post>>();
-
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
-struct Post {
-    title: String,
-    content: String,
-    summary: String,
-    publication_date: DateTime<Utc>,
-    link: String,
-}
-
-impl Post {
-    // fn summarize(&mut self) {
-    //     if self.summary.len() < 280 {
-    //         self.summary = self.content[0..280].to_string()
-    //     }
-    // }
-
-    fn summarize(&mut self) {
-        self.summary = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(summarize(self.content.clone()))
-        })
-        .unwrap_or_else(|_| String::from("Empty summary"));
-    }
-
-    fn to_html(&mut self) -> String {
-        self.summarize();
-        format!(
-            "<h4><a href={}>{}</a></h4><i>On {}: </i><p> {}</p>",
-            self.link,
-            self.title,
-            self.publication_date.format("%A"),
-            self.summary
-        )
-    }
-}
-
-impl From<&rss::Item> for Post {
-    fn from(item: &rss::Item) -> Self {
-        Self {
-            title: item.title().map_or_else(String::new, String::from),
-            link: item.link().map_or_else(String::new, String::from),
-            content: item.content().map_or_else(String::new, |text| {
-                let plain_text = html2text::from_read(&text.as_bytes()[..], text.len()).unwrap();
-                let text_without_urls = URL_REGEX.replace_all(plain_text.as_str(), "").to_string();
-                UNNECESSARY_SYMBOLS_REGEX
-                    .replace_all(&text_without_urls.as_str(), "")
-                    .to_string()
-            }),
-            publication_date: DateTime::parse_from_rfc2822(item.pub_date().unwrap_or_default())
-                .unwrap_or_default()
-                .with_timezone(&Utc),
-            summary: String::new(),
-        }
-    }
-}
-
-async fn post_to_telegraph(newsletter: &mut Newsletter) -> telegraph_rs::Page {
+pub(crate) async fn post_to_telegraph(
+    newsletter: &mut Newsletter<Fetched>,
+    config: &ModelConfig,
+) -> Result<telegraph_rs::Page> {
     let telegraph = telegraph_rs::Telegraph::new(&newsletter.title)
         .create()
-        .await
-        .unwrap();
-    println!("created telegraph object");
-    let newsletter_text = newsletter.to_html();
-    println!("created newsletter text");
+        .await?;
+    debug!("created telegraph object");
+    let newsletter_text = newsletter.to_html(config).await;
+    debug!("created newsletter text");
 
     let newsletter_title = format!(
         "{} for {}",
         &newsletter.title,
         Utc::now().format("week %W (%e %B)")
     );
-    println!("created newsletter title");
+    debug!("created newsletter title");
 
     let node_text = telegraph_rs::html_to_node(newsletter_text.as_str());
-    println!("created newsletter nodes {node_text:?}");
+    debug!("created newsletter nodes {node_text:?}");
 
     let page = telegraph
         .create_page(newsletter_title.as_str(), &node_text, false)
-        .await
-        .unwrap();
-    println!("posted page");
+        .await?;
+    debug!("posted page");
 
-    page
-}
-
-async fn summarize(text_to_summarize: String) -> Result<String, Box<dyn Error>> {
-    let summarization_prompt = String::from("Summarize the following text into a single text of no more than 280 characters. Focus on capturing the main takeaway and presenting it. Avoid excessive detail but ensure the core message is clear and engaging. Text:");
-    let prompt = format!("{} {}", summarization_prompt, text_to_summarize);
-
-    // let config = OpenAIConfig::new().with_api_base("https://api.perplexity.ai");
-    // let client = Client::with_config(config);
-    let client = Client::new();
-
-    let request = CreateChatCompletionRequestArgs::default()
-        .model("gpt-4o-mini")
-        .messages([ChatCompletionRequestSystemMessageArgs::default()
-            .content(prompt)
-            .build()?
-            .into()])
-        .max_tokens(280_u32)
-        .build()?;
-
-    let response = client.chat().create(request).await?;
-
-    response.choices[0]
-        .message
-        .content
-        .clone()
-        .ok_or("error with message option".into())
+    Ok(page)
 }
