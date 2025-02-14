@@ -4,4 +4,4 @@ version = "0.0.0"
 edition = "2021"
 
 [workspace]
-members = ["exercism/rust/*", "digest", "xrill", "parquetify"]
+members = ["exercism/rust/*", "digest", "xrill", "parquetify", "deeplearning"]
